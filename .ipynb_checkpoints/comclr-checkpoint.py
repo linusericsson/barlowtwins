@@ -16,10 +16,14 @@ import sys
 import time
 
 from PIL import Image, ImageOps, ImageFilter
+import numpy as np
 from torch import nn, optim
 import torch
+import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
+
+from comclr_transform import ComCLRTransform
 
 parser = argparse.ArgumentParser(description='Barlow Twins Training')
 parser.add_argument('data', type=Path, metavar='DIR',
@@ -85,7 +89,7 @@ def main_worker(gpu, args):
     torch.cuda.set_device(gpu)
     torch.backends.cudnn.benchmark = True
 
-    model = BarlowTwins(args).cuda(gpu)
+    model = ComCLR(args).cuda(gpu)
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     param_weights = []
     param_biases = []
@@ -95,7 +99,8 @@ def main_worker(gpu, args):
         else:
             param_weights.append(param)
     parameters = [{'params': param_weights}, {'params': param_biases}]
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu])
+    print('Warning: find_unused_parameters=True!')
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu], find_unused_parameters=True)
     optimizer = LARS(parameters, lr=0, weight_decay=args.weight_decay,
                      weight_decay_filter=True,
                      lars_adaptation_filter=True)
@@ -110,9 +115,9 @@ def main_worker(gpu, args):
     else:
         start_epoch = 0
 
-    #dataset = torchvision.datasets.ImageFolder(args.data / 'train', Transform())
+    #dataset = torchvision.datasets.ImageFolder(args.data / 'train', ComCLRTransform())
     print('Warning: loading validation set!')
-    dataset = torchvision.datasets.ImageFolder(args.data / 'val', Transform())
+    dataset = torchvision.datasets.ImageFolder(args.data / 'val', ComCLRTransform())
     sampler = torch.utils.data.distributed.DistributedSampler(dataset)
     assert args.batch_size % args.world_size == 0
     per_device_batch_size = args.batch_size // args.world_size
@@ -124,13 +129,13 @@ def main_worker(gpu, args):
     scaler = torch.cuda.amp.GradScaler()
     for epoch in range(start_epoch, args.epochs):
         sampler.set_epoch(epoch)
-        for step, ((y1, y2), _) in enumerate(loader, start=epoch * len(loader)):
+        for step, ((y1, y2, s1, s2), _) in enumerate(loader, start=epoch * len(loader)):
             y1 = y1.cuda(gpu, non_blocking=True)
             y2 = y2.cuda(gpu, non_blocking=True)
             adjust_learning_rate(args, optimizer, loader, step)
             optimizer.zero_grad()
             with torch.cuda.amp.autocast():
-                loss = model.forward(y1, y2)
+                loss = model.forward(y1, y2, s1, s2)
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
@@ -220,6 +225,107 @@ class BarlowTwins(nn.Module):
         on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
         off_diag = off_diagonal(c).pow_(2).sum()
         loss = on_diag + self.args.lambd * off_diag
+        return loss
+
+
+def D(a, b): # negative cosine similarity
+    return 1 - F.cosine_similarity(a, b, dim=-1).mean()
+
+
+class ComCLR(nn.Module):
+    def __init__(self, args):
+        super().__init__()
+        self.args = args
+        self.backbone = torchvision.models.resnet50(zero_init_residual=True)
+        self.backbone.fc = nn.Identity()
+
+        # projectors
+        sizes = [2048] + list(map(int, args.projector.split('-')))
+        print('Warning: not using batch norm layers in heads!')
+        def make_projector(sizes, batch_norm=False):
+            layers = []
+            for i in range(len(sizes) - 2):
+                layers.append(nn.Linear(sizes[i], sizes[i + 1], bias=False))
+                if batch_norm: layers.append(nn.BatchNorm1d(sizes[i + 1]))
+                layers.append(nn.ReLU(inplace=True))
+            layers.append(nn.Linear(sizes[-2], sizes[-1], bias=False))
+            return layers
+
+        self.central_head = nn.Sequential(*make_projector(sizes))
+        self.central_bn = nn.BatchNorm1d(sizes[-1], affine=False)
+
+        self.spatial_head = nn.Sequential(*make_projector(sizes))
+        self.spatial_bn = nn.BatchNorm1d(sizes[-1], affine=False) # are these batch norms usable?
+        self.colour_head = nn.Sequential(*make_projector(sizes))
+        self.colour_bn = nn.BatchNorm1d(sizes[-1], affine=False)
+        self.shape_head = nn.Sequential(*make_projector(sizes))
+        self.shape_bn = nn.BatchNorm1d(sizes[-1], affine=False)
+
+        self.heads = [self.spatial_head, self.colour_head, self.shape_head]
+
+        self.lambd = 1.0
+
+    def batch_redundancy(self, z1, z2, return_on_diag=False):
+        # empirical cross-correlation matrix
+        c = self.central_bn(z1).T @ self.central_bn(z2)
+
+        # sum the cross-correlation matrix between all gpus
+        c.div_(self.args.batch_size)
+        torch.distributed.all_reduce(c)
+
+        on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
+        off_diag = off_diagonal(c).pow_(2).sum()
+        if return_on_diag:
+            return on_diag, off_diag
+        else:
+            return off_diag
+
+    def forward(self, y1, y2, s1, s2):
+        # pass images through backbone
+        h1, h2 = self.backbone(y1), self.backbone(y2)
+
+        heads_to_use = []
+        for i in range(self.args.batch_size):
+            # get the indices of the unused augmentations for this pair of inputs
+            unused_augs_idx = ((np.array(s1[i].cpu()) + np.array(s2[i].cpu())) == 0).nonzero()[0]
+            # the heads we use are the unused augmentations plus the central head
+            heads_to_use.append(unused_augs_idx)
+        heads_to_use = np.array(heads_to_use)
+
+        loss = 0.
+
+        # how do we do this in matrix form?
+        z1 = []
+        z2 = []
+        for i in range(self.args.batch_size):
+            # always pass the pair of images through the ABC head
+            z1c, z2c = self.central_head(h1[i]), self.central_head(h2[i])
+            z1.append(z1c)
+            z2.append(z2c)
+            # compute the standard invariance loss for ABC
+            loss += D(z1c, z2c)
+            # for each head
+            for j in heads_to_use[i]:
+                # let's imagine this is the AB head
+                # we'll pass both images through the AB head
+                z1j = self.heads[j](h1[i])
+                z2j = self.heads[j](h2[i])
+                # compute the invariance loss on the AB head
+                loss += D(z1j, z2j)
+                # compute the two redundacy losses between AB and ABC
+                # (we want to maximise the distance between these, so negative sign)
+                loss -= D(z1j, z1c) + D(z2j, z2c)
+                z1.append(z1j)
+                z2.append(z2j)
+        # z1 and z2 contain all the features that have been used in the losses
+        z1 = torch.stack(z1)
+        z2 = torch.stack(z2)
+
+        # we compute the batch redundancy (from Barlow Twins) on all the features
+        # do we want to use all features like this?
+        batch_redun = self.batch_redundancy(z1, z2)
+        # add it to the loss with a coefficient we can control
+        loss += self.lambd * batch_redun
         return loss
 
 

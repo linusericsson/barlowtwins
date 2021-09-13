@@ -1,0 +1,43 @@
+comclr.py ../data/imagenet
+comclr.py ../data/imagenet --batch-size 32
+comclr.py ../data/imagenet --batch-size 2
+comclr.py ../data/imagenet --batch-size 32 --projector 512-512-512
+comclr.py ../data/imagenet --batch-size 32 --projector 512-512-512
+comclr.py ../data/imagenet --batch-size 32 --projector 512-512-512
+comclr.py ../data/imagenet --batch-size 32 --projector 512-512-512
+comclr.py ../data/imagenet --batch-size 32 --projector 512-512-512
+comclr.py ../data/imagenet --batch-size 32 --projector 512-512-512
+main.py ../data/imagenet --batch-size 32 --projector 512-512-512
+main.py ../data/imagenet --batch-size 32 --projector 512-512-512
+main.py ../data/imagenet --batch-size 8 --projector 512-512-512
+{"epoch": 0, "step": 0, "lr_weights": 0.0, "lr_biases": 0.0, "loss": 618.1852416992188, "time": 6}
+main.py ../data/imagenet --batch-size 8 --projector 512-512-512
+{"epoch": 0, "step": 0, "lr_weights": 0.0, "lr_biases": 0.0, "loss": 801.5787353515625, "time": 6}
+{"epoch": 0, "step": 100, "lr_weights": 1e-05, "lr_biases": 2.4e-07, "loss": 516.2528686523438, "time": 99}
+main.py ../data/imagenet --batch-size 32 --projector 512-512-512
+main.py ../data/imagenet --batch-size 24 --projector 512-512-512
+{"epoch": 0, "step": 0, "lr_weights": 0.0, "lr_biases": 0.0, "loss": 408.751220703125, "time": 7}
+{"epoch": 0, "step": 100, "lr_weights": 8.997120921305183e-05, "lr_biases": 2.1593090211132435e-06, "loss": 415.8780517578125, "time": 82}
+{"epoch": 0, "step": 200, "lr_weights": 0.00017994241842610365, "lr_biases": 4.318618042226487e-06, "loss": 388.59893798828125, "time": 160}
+comclr.py ../data/imagenet --batch-size 24 --projector 512-512-512
+{"epoch": 0, "step": 0, "lr_weights": 0.0, "lr_biases": 0.0, "loss": 73136.3125, "time": 12}
+comclr.py ../data/imagenet --batch-size 24 --projector 512-512-512
+{"epoch": 0, "step": 0, "lr_weights": 0.0, "lr_biases": 0.0, "loss": 81868.0, "time": 12}
+comclr.py ../data/imagenet --batch-size 24 --projector 512-512-512
+{"epoch": 0, "step": 0, "lr_weights": 0.0, "lr_biases": 0.0, "loss": 97797.25, "time": 12}
+comclr.py ../data/imagenet --batch-size 24 --projector 512-512-512
+{"epoch": 0, "step": 0, "lr_weights": 0.0, "lr_biases": 0.0, "loss": 79348.7734375, "time": 12}
+comclr.py ../data/imagenet --batch-size 64 --projector 256-256-256
+comclr.py ../data/imagenet --batch-size 48 --projector 256-256-256
+comclr.py ../data/imagenet --batch-size 32 --projector 256-256-256
+comclr.py ../data/imagenet --batch-size 32 --projector 256-256-256
+comclr.py ../data/imagenet --batch-size 24 --projector 512-512-512
+{"epoch": 0, "step": 0, "lr_weights": 0.0, "lr_biases": 0.0, "loss": 104267.9140625, "time": 13}
+comclr.py ../data/imagenet --batch-size 24 --projector 512-512-512
+{"epoch": 0, "step": 0, "lr_weights": 0.0, "lr_biases": 0.0, "loss": 90995.6640625, "time": 12}
+{"epoch": 0, "step": 100, "lr_weights": 8.997120921305183e-05, "lr_biases": 2.1593090211132435e-06, "loss": 25302.224609375, "time": 153}
+{"epoch": 0, "step": 200, "lr_weights": 0.00017994241842610365, "lr_biases": 4.318618042226487e-06, "loss": 87340.8046875, "time": 243}
+{"epoch": 0, "step": 300, "lr_weights": 0.0002699136276391555, "lr_biases": 6.47792706333973e-06, "loss": 35502.13671875, "time": 334}
+{"epoch": 0, "step": 400, "lr_weights": 0.0003598848368522073, "lr_biases": 8.637236084452974e-06, "loss": 6026.67138671875, "time": 488}
+{"epoch": 0, "step": 500, "lr_weights": 0.00044985604606525913, "lr_biases": 1.0796545105566218e-05, "loss": 100334.6328125, "time": 645}
+{"epoch": 0, "step": 600, "lr_weights": 0.000539827255278311, "lr_biases": 1.295585412667946e-05, "loss": 65690.90625, "time": 802}
