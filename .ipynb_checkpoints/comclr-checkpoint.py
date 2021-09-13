@@ -115,9 +115,9 @@ def main_worker(gpu, args):
     else:
         start_epoch = 0
 
-    #dataset = torchvision.datasets.ImageFolder(args.data / 'train', ComCLRTransform())
-    print('Warning: loading validation set!')
-    dataset = torchvision.datasets.ImageFolder(args.data / 'val', ComCLRTransform())
+    dataset = torchvision.datasets.ImageFolder(args.data / 'train', ComCLRTransform())
+    #print('Warning: loading validation set!')
+    #dataset = torchvision.datasets.ImageFolder(args.data / 'val', ComCLRTransform())
     sampler = torch.utils.data.distributed.DistributedSampler(dataset)
     assert args.batch_size % args.world_size == 0
     per_device_batch_size = args.batch_size // args.world_size

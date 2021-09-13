@@ -41,3 +41,5 @@ comclr.py ../data/imagenet --batch-size 24 --projector 512-512-512
 {"epoch": 0, "step": 400, "lr_weights": 0.0003598848368522073, "lr_biases": 8.637236084452974e-06, "loss": 6026.67138671875, "time": 488}
 {"epoch": 0, "step": 500, "lr_weights": 0.00044985604606525913, "lr_biases": 1.0796545105566218e-05, "loss": 100334.6328125, "time": 645}
 {"epoch": 0, "step": 600, "lr_weights": 0.000539827255278311, "lr_biases": 1.295585412667946e-05, "loss": 65690.90625, "time": 802}
+{"epoch": 0, "step": 700, "lr_weights": 0.0006297984644913628, "lr_biases": 1.5115163147792703e-05, "loss": 5175.0126953125, "time": 907}
+{"epoch": 0, "step": 800, "lr_weights": 0.0007197696737044146, "lr_biases": 1.7274472168905948e-05, "loss": 89537.4453125, "time": 1039}
