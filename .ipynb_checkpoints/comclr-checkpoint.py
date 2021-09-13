@@ -285,7 +285,7 @@ class ComCLR(nn.Module):
         h1, h2 = self.backbone(y1), self.backbone(y2)
 
         heads_to_use = []
-        for i in range(self.args.batch_size):
+        for i in range(len(y1)):
             # get the indices of the unused augmentations for this pair of inputs
             unused_augs_idx = ((np.array(s1[i].cpu()) + np.array(s2[i].cpu())) == 0).nonzero()[0]
             # the heads we use are the unused augmentations plus the central head
@@ -297,7 +297,7 @@ class ComCLR(nn.Module):
         # how do we do this in matrix form?
         z1 = []
         z2 = []
-        for i in range(self.args.batch_size):
+        for i in range(len(y1)):
             # always pass the pair of images through the ABC head
             z1c, z2c = self.central_head(h1[i]), self.central_head(h2[i])
             z1.append(z1c)
