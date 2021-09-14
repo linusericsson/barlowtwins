@@ -82,7 +82,7 @@ def main_worker(gpu, args):
 
     if args.rank == 0:
         args.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        stats_file = open(args.checkpoint_dir / 'stats.txt', 'a', buffering=1)
+        stats_file = open(args.checkpoint_dir / 'comclr_stats.txt', 'a', buffering=1)
         print(' '.join(sys.argv))
         print(' '.join(sys.argv), file=stats_file)
 
@@ -106,8 +106,8 @@ def main_worker(gpu, args):
                      lars_adaptation_filter=True)
 
     # automatically resume from checkpoint if it exists
-    if (args.checkpoint_dir / 'checkpoint.pth').is_file():
-        ckpt = torch.load(args.checkpoint_dir / 'checkpoint.pth',
+    if (args.checkpoint_dir / 'comclr_checkpoint.pth').is_file():
+        ckpt = torch.load(args.checkpoint_dir / 'comclr_checkpoint.pth',
                           map_location='cpu')
         start_epoch = ckpt['epoch']
         model.load_state_dict(ckpt['model'])
@@ -152,11 +152,11 @@ def main_worker(gpu, args):
             # save checkpoint
             state = dict(epoch=epoch + 1, model=model.state_dict(),
                          optimizer=optimizer.state_dict())
-            torch.save(state, args.checkpoint_dir / 'checkpoint.pth')
+            torch.save(state, args.checkpoint_dir / 'comclr_checkpoint.pth')
     if args.rank == 0:
         # save final model
         torch.save(model.module.backbone.state_dict(),
-                   args.checkpoint_dir / 'resnet50.pth')
+                   args.checkpoint_dir / 'comclr_resnet50.pth')
 
 
 def adjust_learning_rate(args, optimizer, loader, step):
