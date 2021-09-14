@@ -3,6 +3,8 @@ from torchvision import transforms
 
 import PIL
 import numpy as np
+import sys
+sys.path.append('../elasticdeform/')
 import elasticdeform
 
 
