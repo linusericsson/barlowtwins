@@ -25,7 +25,7 @@ import torchvision.transforms as transforms
 
 from comclr_transform import ComCLRTransform
 
-parser = argparse.ArgumentParser(description='Barlow Twins Training')
+parser = argparse.ArgumentParser(description='ComCLR Training (based on Barlow Twins)')
 parser.add_argument('data', type=Path, metavar='DIR',
                     help='path to dataset')
 parser.add_argument('--workers', default=8, type=int, metavar='N',
@@ -191,43 +191,6 @@ def off_diagonal(x):
     return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
 
 
-class BarlowTwins(nn.Module):
-    def __init__(self, args):
-        super().__init__()
-        self.args = args
-        self.backbone = torchvision.models.resnet50(zero_init_residual=True)
-        self.backbone.fc = nn.Identity()
-
-        # projector
-        sizes = [2048] + list(map(int, args.projector.split('-')))
-        layers = []
-        for i in range(len(sizes) - 2):
-            layers.append(nn.Linear(sizes[i], sizes[i + 1], bias=False))
-            layers.append(nn.BatchNorm1d(sizes[i + 1]))
-            layers.append(nn.ReLU(inplace=True))
-        layers.append(nn.Linear(sizes[-2], sizes[-1], bias=False))
-        self.projector = nn.Sequential(*layers)
-
-        # normalization layer for the representations z1 and z2
-        self.bn = nn.BatchNorm1d(sizes[-1], affine=False)
-
-    def forward(self, y1, y2):
-        z1 = self.projector(self.backbone(y1))
-        z2 = self.projector(self.backbone(y2))
-
-        # empirical cross-correlation matrix
-        c = self.bn(z1).T @ self.bn(z2)
-
-        # sum the cross-correlation matrix between all gpus
-        c.div_(self.args.batch_size)
-        torch.distributed.all_reduce(c)
-
-        on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
-        off_diag = off_diagonal(c).pow_(2).sum()
-        loss = on_diag + self.args.lambd * off_diag
-        return loss
-
-
 def D(a, b): # negative cosine similarity
     return 1 - F.cosine_similarity(a, b, dim=-1).mean()
 
@@ -241,6 +204,9 @@ class ComCLR(nn.Module):
 
         # projectors
         sizes = [2048] + list(map(int, args.projector.split('-')))
+
+        # can't use batch norm in the heads at the moment
+        # since my implementation only passes 1 feature at a time through the head
         print('Warning: not using batch norm layers in heads!')
         def make_projector(sizes, batch_norm=False):
             layers = []
@@ -255,17 +221,20 @@ class ComCLR(nn.Module):
         self.central_bn = nn.BatchNorm1d(sizes[-1], affine=False)
 
         self.spatial_head = nn.Sequential(*make_projector(sizes))
-        self.spatial_bn = nn.BatchNorm1d(sizes[-1], affine=False) # are these batch norms usable?
+        #self.spatial_bn = nn.BatchNorm1d(sizes[-1], affine=False)
         self.colour_head = nn.Sequential(*make_projector(sizes))
-        self.colour_bn = nn.BatchNorm1d(sizes[-1], affine=False)
+        #self.colour_bn = nn.BatchNorm1d(sizes[-1], affine=False)
         self.shape_head = nn.Sequential(*make_projector(sizes))
-        self.shape_bn = nn.BatchNorm1d(sizes[-1], affine=False)
+        #self.shape_bn = nn.BatchNorm1d(sizes[-1], affine=False)
 
         self.heads = [self.spatial_head, self.colour_head, self.shape_head]
 
-        self.lambd = 1.0
-
     def batch_redundancy(self, z1, z2, return_on_diag=False):
+        """
+        The redundancy term from Barlow Twins
+        We skip the on_diag part of the loss here
+        which corresponds to our invariance losses
+        """
         # empirical cross-correlation matrix
         c = self.central_bn(z1).T @ self.central_bn(z2)
 
@@ -287,14 +256,16 @@ class ComCLR(nn.Module):
         heads_to_use = []
         for i in range(len(y1)):
             # get the indices of the unused augmentations for this pair of inputs
+            # e.g. if we use spatial+colour augmentations, then we want to use the shape head
             unused_augs_idx = ((np.array(s1[i].cpu()) + np.array(s2[i].cpu())) == 0).nonzero()[0]
-            # the heads we use are the unused augmentations plus the central head
+            # the heads we use are the ones associated with the unused augmentations
             heads_to_use.append(unused_augs_idx)
         heads_to_use = np.array(heads_to_use)
 
         loss = 0.
 
-        # how do we do this in matrix form?
+        # we need to make this code more efficient
+        # how do we do it with matrix operations?
         z1 = []
         z2 = []
         for i in range(len(y1)):
@@ -322,10 +293,11 @@ class ComCLR(nn.Module):
         z2 = torch.stack(z2)
 
         # we compute the batch redundancy (from Barlow Twins) on all the features
-        # do we want to use all features like this?
+        # this implementation uses all of the features we've computed (potentially from multiple heads per input)
+       #  do we want to use all features like this, or only the ones that come from the central head?
         batch_redun = self.batch_redundancy(z1, z2)
         # add it to the loss with a coefficient we can control
-        loss += self.lambd * batch_redun
+        loss += self.args.lambd * batch_redun
         return loss
 
 
