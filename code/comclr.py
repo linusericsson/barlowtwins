@@ -49,8 +49,6 @@ parser.add_argument('--print-freq', default=100, type=int, metavar='N',
 parser.add_argument('--checkpoint-dir', default='./checkpoint/', type=Path,
                     metavar='DIR', help='path to checkpoint directory')
 
-parser.add_argument('--find-unused-parameters', action='store_true', type=bool, default=False)
-
 
 def main():
     args = parser.parse_args()
@@ -101,8 +99,8 @@ def main_worker(gpu, args):
         else:
             param_weights.append(param)
     parameters = [{'params': param_weights}, {'params': param_biases}]
-    if args.find_unused_parameters: print('Warning: find_unused_parameters=True!')
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu], find_unused_parameters=args.find_unused_parameters)
+    print('Warning: find_unused_parameters=True!')
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu], find_unused_parameters=True)
     optimizer = LARS(parameters, lr=0, weight_decay=args.weight_decay,
                      weight_decay_filter=True,
                      lars_adaptation_filter=True)

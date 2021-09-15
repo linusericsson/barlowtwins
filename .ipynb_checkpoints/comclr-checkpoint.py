@@ -49,6 +49,8 @@ parser.add_argument('--print-freq', default=100, type=int, metavar='N',
 parser.add_argument('--checkpoint-dir', default='./checkpoint/', type=Path,
                     metavar='DIR', help='path to checkpoint directory')
 
+parser.add_argument('--find-unused-parameters', action='store_true', type=bool, default=False)
+
 
 def main():
     args = parser.parse_args()
@@ -99,8 +101,8 @@ def main_worker(gpu, args):
         else:
             param_weights.append(param)
     parameters = [{'params': param_weights}, {'params': param_biases}]
-    print('Warning: find_unused_parameters=True!')
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu], find_unused_parameters=True)
+    if args.find_unused_parameters: print('Warning: find_unused_parameters=True!')
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu], find_unused_parameters=args.find_unused_parameters)
     optimizer = LARS(parameters, lr=0, weight_decay=args.weight_decay,
                      weight_decay_filter=True,
                      lars_adaptation_filter=True)
@@ -294,7 +296,7 @@ class ComCLR(nn.Module):
 
         # we compute the batch redundancy (from Barlow Twins) on all the features
         # this implementation uses all of the features we've computed (potentially from multiple heads per input)
-       #  do we want to use all features like this, or only the ones that come from the central head?
+        # do we want to use all features like this, or only the ones that come from the central head?
         batch_redun = self.batch_redundancy(z1, z2)
         # add it to the loss with a coefficient we can control
         loss += self.args.lambd * batch_redun
