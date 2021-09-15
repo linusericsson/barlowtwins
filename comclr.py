@@ -49,7 +49,7 @@ parser.add_argument('--print-freq', default=100, type=int, metavar='N',
 parser.add_argument('--checkpoint-dir', default='./checkpoint/', type=Path,
                     metavar='DIR', help='path to checkpoint directory')
 
-parser.add_argument('--find-unused-parameters', action='store_true', type=bool, default=False)
+parser.add_argument('--find-unused-parameters', action='store_true')
 
 
 def main():
