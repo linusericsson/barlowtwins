@@ -216,7 +216,7 @@ class ComCLR(nn.Module):
         # can't use batch norm in the heads at the moment
         # since my implementation only passes 1 feature at a time through the head
         print('Warning: not using batch norm layers in heads!')
-        def make_projector(sizes, batch_norm=False):
+        def make_projector(sizes, batch_norm=True):
             layers = []
             for i in range(len(sizes) - 2):
                 layers.append(nn.Linear(sizes[i], sizes[i + 1], bias=False))
