@@ -1,0 +1,1 @@
+python comclr.py --batch-size 1024 --projector 128-128-128 --epochs 100 $DATA_ROOT/imagenet

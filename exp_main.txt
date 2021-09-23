@@ -1,0 +1,1 @@
+python main.py --batch-size 1024 --epochs 100 $DATA_ROOT/imagenet
