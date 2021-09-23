@@ -28,6 +28,8 @@ from comclr_transform import ComCLRTransform
 parser = argparse.ArgumentParser(description='ComCLR Training (based on Barlow Twins)')
 parser.add_argument('data', type=Path, metavar='DIR',
                     help='path to dataset')
+parser.add_argument('--split', default='train', type=str, metavar='S',
+                    help='dataset split to train on (train/val)')
 parser.add_argument('--workers', default=8, type=int, metavar='N',
                     help='number of data loader workers')
 parser.add_argument('--epochs', default=1000, type=int, metavar='N',
@@ -42,6 +44,8 @@ parser.add_argument('--weight-decay', default=1e-6, type=float, metavar='W',
                     help='weight decay')
 parser.add_argument('--lambd', default=0.0051, type=float, metavar='L',
                     help='weight on off-diagonal terms')
+parser.add_argument('--beta', default=1.0, type=float, metavar='L',
+                    help='weight of redundancy terms')
 parser.add_argument('--projector', default='8192-8192-8192', type=str,
                     metavar='MLP', help='projector MLP')
 parser.add_argument('--print-freq', default=100, type=int, metavar='N',
@@ -117,9 +121,11 @@ def main_worker(gpu, args):
     else:
         start_epoch = 0
 
-    dataset = torchvision.datasets.ImageFolder(args.data / 'train', ComCLRTransform())
-    #print('Warning: loading validation set!')
-    #dataset = torchvision.datasets.ImageFolder(args.data / 'val', ComCLRTransform())
+    data_transform = ComCLRTransform()
+    dataset = torchvision.datasets.ImageFolder(args.data / args.split, transforms.Compose([
+        transforms.Resize(256), transforms.CenterCrop(256), transforms.ToTensor()
+    ]))
+    if args.split == 'val': print('Warning: loading validation set!')
     sampler = torch.utils.data.distributed.DistributedSampler(dataset)
     assert args.batch_size % args.world_size == 0
     per_device_batch_size = args.batch_size // args.world_size
@@ -131,13 +137,13 @@ def main_worker(gpu, args):
     scaler = torch.cuda.amp.GradScaler()
     for epoch in range(start_epoch, args.epochs):
         sampler.set_epoch(epoch)
-        for step, ((y1, y2, s1, s2), _) in enumerate(loader, start=epoch * len(loader)):
-            y1 = y1.cuda(gpu, non_blocking=True)
-            y2 = y2.cuda(gpu, non_blocking=True)
+        for step, (x, _) in enumerate(loader, start=epoch * len(loader)):
             adjust_learning_rate(args, optimizer, loader, step)
             optimizer.zero_grad()
+
             with torch.cuda.amp.autocast():
-                loss = model.forward(y1, y2, s1, s2)
+                loss = model.forward(x, data_transform, gpu=gpu)
+
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
@@ -223,22 +229,27 @@ class ComCLR(nn.Module):
         self.central_bn = nn.BatchNorm1d(sizes[-1], affine=False)
 
         self.spatial_head = nn.Sequential(*make_projector(sizes))
-        #self.spatial_bn = nn.BatchNorm1d(sizes[-1], affine=False)
+        self.spatial_bn = nn.BatchNorm1d(sizes[-1], affine=False)
         self.colour_head = nn.Sequential(*make_projector(sizes))
-        #self.colour_bn = nn.BatchNorm1d(sizes[-1], affine=False)
+        self.colour_bn = nn.BatchNorm1d(sizes[-1], affine=False)
         self.shape_head = nn.Sequential(*make_projector(sizes))
-        #self.shape_bn = nn.BatchNorm1d(sizes[-1], affine=False)
+        self.shape_bn = nn.BatchNorm1d(sizes[-1], affine=False)
 
-        self.heads = [self.spatial_head, self.colour_head, self.shape_head]
+        self.heads = {
+            'spatial': self.spatial_head, 
+            'colour': self.colour_head,
+            'shape': self.shape_head,
+            'all': self.central_head
+        }
 
-    def batch_redundancy(self, z1, z2, return_on_diag=False):
+    def barlowtwins(self, z1, z2, return_off_diag=True):
         """
         The redundancy term from Barlow Twins
         We skip the on_diag part of the loss here
         which corresponds to our invariance losses
         """
         # empirical cross-correlation matrix
-        c = self.central_bn(z1).T @ self.central_bn(z2)
+        c = z1.T @ z2
 
         # sum the cross-correlation matrix between all gpus
         c.div_(self.args.batch_size)
@@ -246,60 +257,59 @@ class ComCLR(nn.Module):
 
         on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
         off_diag = off_diagonal(c).pow_(2).sum()
-        if return_on_diag:
-            return on_diag, off_diag
+        if return_off_diag:
+            return on_diag + self.args.lambd * off_diag
         else:
-            return off_diag
+            return on_diag
 
-    def forward(self, y1, y2, s1, s2):
-        # pass images through backbone
-        h1, h2 = self.backbone(y1), self.backbone(y2)
+    def forward(self, x, data_transform, gpu):
+        # augment images
+        y1_central, y2_central = data_transform.augment_batch(x, section='central')
+        y1_central, y2_central = y1_central.cuda(gpu, non_blocking=True), y2_central.cuda(gpu, non_blocking=True)
+        # pass images through backbone and relevant head
+        h1_central, h2_central = self.backbone(y1_central), self.backbone(y2_central)
+        z1_central, z2_central = self.central_head(h1_central), self.central_head(h2_central)
+        # apply batch normalisation
+        z1_central_bn, z2_central_bn = self.central_bn(z1_central), self.central_bn(z2_central)
 
-        heads_to_use = []
-        for i in range(len(y1)):
-            # get the indices of the unused augmentations for this pair of inputs
-            # e.g. if we use spatial+colour augmentations, then we want to use the shape head
-            unused_augs_idx = ((np.array(s1[i].cpu()) + np.array(s2[i].cpu())) == 0).nonzero()[0]
-            # the heads we use are the ones associated with the unused augmentations
-            heads_to_use.append(unused_augs_idx)
-        heads_to_use = np.array(heads_to_use)
+        # augment images
+        y1_spatial, y2_spatial = data_transform.augment_batch(x, section='spatial')
+        y1_spatial, y2_spatial = y1_spatial.cuda(gpu, non_blocking=True), y2_spatial.cuda(gpu, non_blocking=True)
+        # pass images through backbone and relevant head
+        h1_spatial, h2_spatial = self.backbone(y1_spatial), self.backbone(y2_spatial)
+        z1_spatial, z2_spatial = self.spatial_head(h1_spatial), self.spatial_head(h2_spatial)
+        # apply batch normalisation
+        z1_spatial_bn, z2_spatial_bn = self.spatial_bn(z1_spatial), self.spatial_bn(z2_spatial)
 
-        loss = 0.
+        # augment images
+        y1_colour, y2_colour = data_transform.augment_batch(x, section='colour')
+        y1_colour, y2_colour = y1_colour.cuda(gpu, non_blocking=True), y2_colour.cuda(gpu, non_blocking=True)
+        # pass images through backbone and relevant head
+        h1_colour, h2_colour = self.backbone(y1_colour), self.backbone(y2_colour)
+        z1_colour, z2_colour = self.colour_head(h1_colour), self.colour_head(h2_colour)
+        # apply batch normalisation
+        z1_colour_bn, z2_colour_bn = self.colour_bn(z1_colour), self.colour_bn(z2_colour)
 
-        # we need to make this code more efficient
-        # how do we do it with matrix operations?
-        z1 = []
-        z2 = []
-        for i in range(len(y1)):
-            # always pass the pair of images through the ABC head
-            z1c, z2c = self.central_head(h1[i]), self.central_head(h2[i])
-            z1.append(z1c)
-            z2.append(z2c)
-            # compute the standard invariance loss for ABC
-            loss += D(z1c, z2c)
-            # for each head
-            for j in heads_to_use[i]:
-                # let's imagine this is the AB head
-                # we'll pass both images through the AB head
-                z1j = self.heads[j](h1[i])
-                z2j = self.heads[j](h2[i])
-                # compute the invariance loss on the AB head
-                loss += D(z1j, z2j)
-                # compute the two redundacy losses between AB and ABC
-                # (we want to maximise the distance between these, so negative sign)
-                loss -= D(z1j, z1c) + D(z2j, z2c)
-                z1.append(z1j)
-                z2.append(z2j)
-        # z1 and z2 contain all the features that have been used in the losses
-        z1 = torch.stack(z1)
-        z2 = torch.stack(z2)
+        # augment images
+        y1_shape, y2_shape = data_transform.augment_batch(x, section='shape')
+        y1_shape, y2_shape = y1_shape.cuda(gpu, non_blocking=True), y2_shape.cuda(gpu, non_blocking=True)
+        # pass images through backbone and relevant head
+        h1_shape, h2_shape = self.backbone(y1_shape), self.backbone(y2_shape)
+        z1_shape, z2_shape = self.shape_head(h1_shape), self.shape_head(h2_shape)
+        # apply batch normalisation
+        z1_shape_bn, z2_shape_bn = self.shape_bn(z1_shape), self.shape_bn(z2_shape)
 
-        # we compute the batch redundancy (from Barlow Twins) on all the features
-        # this implementation uses all of the features we've computed (potentially from multiple heads per input)
-        # do we want to use all features like this, or only the ones that come from the central head?
-        batch_redun = self.batch_redundancy(z1, z2)
-        # add it to the loss with a coefficient we can control
-        loss += self.args.lambd * batch_redun
+        # compute the losses for each head
+        loss = self.barlowtwins(z1_central_bn, z2_central_bn)
+        loss += self.barlowtwins(z1_spatial_bn, z2_spatial_bn)
+        loss += self.barlowtwins(z1_colour_bn, z2_colour_bn)
+        loss += self.barlowtwins(z1_shape_bn, z2_shape_bn)
+
+        # subtract redundancy terms between the central and other heads
+        loss -= self.args.beta * (self.barlowtwins(z1_spatial_bn, z1_central_bn, False) + self.barlowtwins(z2_spatial_bn, z2_central_bn, False))
+        loss -= self.args.beta * (self.barlowtwins(z1_colour_bn, z1_central_bn, False) + self.barlowtwins(z2_colour_bn, z2_central_bn, False))
+        loss -= self.args.beta * (self.barlowtwins(z1_shape_bn, z1_central_bn, False) + self.barlowtwins(z2_shape_bn, z2_central_bn, False))
+
         return loss
 
 
