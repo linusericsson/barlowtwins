@@ -1,1 +1,3 @@
 comclr.py --batch-size 1024 --projector 128-128-128 --epochs 100 --beta 1.0 /disk/scratch/s1409650/projects/data/imagenet
+comclr.py --batch-size 1024 --projector 128-128-128 --epochs 100 --beta 1.0 /disk/scratch/s1409650/projects/data/imagenet
+comclr.py --batch-size 256 --projector 128-128-128 --epochs 100 --beta 1.0 /disk/scratch/s1409650/projects/data/imagenet
