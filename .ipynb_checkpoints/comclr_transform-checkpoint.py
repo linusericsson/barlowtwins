@@ -3,37 +3,10 @@ from torchvision import transforms
 
 import PIL
 import numpy as np
-import sys
-sys.path.append('../elasticdeform/')
-import elasticdeform
 
-
-# for y1, y2 in loader: # batch size 512, meaning effective batch size of 2048
-#    y1_abc, y2_abc = augmentation_for_central(y1, y2) # unconditional augmentations if possible
-#    y1_ab, y2_ab = augmentation_for_ab(y1, y2)
-#    y1_ac, y2_ac = augmentation_for_ac(y1, y2)
-#    y1_bc, y2_bc = augmentation_for_bc(y1, y2)
-
-#    h1, h2 = backbone(y1), backbone(y2)
-#    z1_abc, z2_abc = central_head(h1), central_head(h2)
-#    z1_ab, z2_ab = spatial_head(h1), spatial_head(h2)
-#    z1_ac, z2_ac = colour_head(h1), colour_head(h2)
-#    z1_bc, z2_bc = shape_head(h1), shape_head(h2)
-
-#    loss = barlowtwins(z1_abc, z2_abc) # apply central_bn
-#    loss += barlowtwins(z1_ab, z2_ab) # apply spatial_bn
-#    loss += barlowtwins(z1_ac, z2_ac) # apply colour_bn
-#    loss += barlowtwins(z1_bc, z2_bc) # apply shape_bn
-
-#    # redundancy is on_diag of barlowtwins
-#    loss += redundancy(z1_ab, z1_abc) + redundancy(z2_ab, z2_abc)
-#    loss += redundancy(z1_ac, z1_abc) + redundancy(z2_ac, z2_abc)
-#    loss += redundancy(z1_bc, z1_abc) + redundancy(z2_bc, z2_abc)
-
-#    loss.backward()
-#    optimizer.step()
-
-
+import albumentations as A
+#sys.path.append('../elasticdeform/')
+#import elasticdeform
 
 
 class ComCLRTransform(object):
@@ -41,7 +14,7 @@ class ComCLRTransform(object):
         augmentation_dict = {
             'spatial': {
                 'aug': transforms.Compose([
-                    transforms.RandomResizedCrop(224),
+                    transforms.RandomResizedCrop(crop_size),
                     transforms.RandomHorizontalFlip()
                 ]),
                 'type': 'crop'
@@ -65,10 +38,10 @@ class ComCLRTransform(object):
                 'type': 'pil'
             },
             'shape': {
-                'aug': transforms.Compose([
-                    transforms.RandomApply([Deform()], p=1.0)
-                ]),
-                'type': 'pre'
+                'aug': transforms.Lambda(
+                    lambda x: A.geometric.transforms.ElasticTransform(always_apply=True, approximate=True)(image=np.array(x))['image']
+                ),
+                'type': 'pil'
             }
         }
 

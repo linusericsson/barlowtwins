@@ -1,3 +1,34 @@
 comclr.py --batch-size 1024 --projector 128-128-128 --epochs 100 --beta 1.0 /disk/scratch/s1409650/projects/data/imagenet
 comclr.py --batch-size 1024 --projector 128-128-128 --epochs 100 --beta 1.0 /disk/scratch/s1409650/projects/data/imagenet
 comclr.py --batch-size 256 --projector 128-128-128 --epochs 100 --beta 1.0 /disk/scratch/s1409650/projects/data/imagenet
+comclr.py --batch-size 8 --projector 64-64-64 --split val --beta 1.0 ../data/imagenet/
+{"epoch": 0, "step": 0, "lr_weights": 0.0, "lr_biases": 0.0, "loss": -204.32034301757812, "time": 8}
+comclr.py --batch-size 16 --projector 64-64-64 --split val --beta 1.0 ../data/imagenet/
+comclr.py --batch-size 12 --projector 64-64-64 --split val --beta 1.0 ../data/imagenet/
+comclr.py --batch-size 8 --projector 64-64-64 --split val --beta 1.0 ../data/imagenet/
+{"epoch": 0, "step": 0, "lr_weights": 0.0, "lr_biases": 0.0, "loss": -222.84840393066406, "time": 8}
+{"epoch": 0, "step": 100, "lr_weights": 1e-05, "lr_biases": 2.4e-07, "loss": -221.11793518066406, "time": 199}
+{"epoch": 0, "step": 200, "lr_weights": 2e-05, "lr_biases": 4.8e-07, "loss": -182.444580078125, "time": 439}
+{"epoch": 0, "step": 300, "lr_weights": 2.9999999999999997e-05, "lr_biases": 7.199999999999999e-07, "loss": -226.168212890625, "time": 685}
+{"epoch": 0, "step": 400, "lr_weights": 4e-05, "lr_biases": 9.6e-07, "loss": -212.97784423828125, "time": 940}
+{"epoch": 0, "step": 500, "lr_weights": 5e-05, "lr_biases": 1.2e-06, "loss": -270.1673278808594, "time": 1191}
+{"epoch": 0, "step": 600, "lr_weights": 5.9999999999999995e-05, "lr_biases": 1.4399999999999998e-06, "loss": -180.78842163085938, "time": 1493}
+{"epoch": 0, "step": 700, "lr_weights": 7.000000000000001e-05, "lr_biases": 1.6799999999999998e-06, "loss": -195.52099609375, "time": 1754}
+{"epoch": 0, "step": 800, "lr_weights": 8e-05, "lr_biases": 1.92e-06, "loss": -237.159423828125, "time": 1951}
+{"epoch": 0, "step": 900, "lr_weights": 9e-05, "lr_biases": 2.1599999999999996e-06, "loss": -205.5237579345703, "time": 2148}
+{"epoch": 0, "step": 1000, "lr_weights": 0.0001, "lr_biases": 2.4e-06, "loss": -311.25, "time": 2400}
+{"epoch": 0, "step": 1100, "lr_weights": 0.00011000000000000002, "lr_biases": 2.64e-06, "loss": -277.98687744140625, "time": 2652}
+{"epoch": 0, "step": 1200, "lr_weights": 0.00011999999999999999, "lr_biases": 2.8799999999999995e-06, "loss": -215.30865478515625, "time": 2915}
+{"epoch": 0, "step": 1300, "lr_weights": 0.00013, "lr_biases": 3.1199999999999998e-06, "loss": -266.2758483886719, "time": 3176}
+{"epoch": 0, "step": 1400, "lr_weights": 0.00014000000000000001, "lr_biases": 3.3599999999999996e-06, "loss": -269.24639892578125, "time": 3443}
+{"epoch": 0, "step": 1500, "lr_weights": 0.00015000000000000001, "lr_biases": 3.6e-06, "loss": -222.9091339111328, "time": 3636}
+{"epoch": 0, "step": 1600, "lr_weights": 0.00016, "lr_biases": 3.84e-06, "loss": -233.30245971679688, "time": 3838}
+{"epoch": 0, "step": 1700, "lr_weights": 0.00017, "lr_biases": 4.079999999999999e-06, "loss": -315.0694274902344, "time": 4036}
+{"epoch": 0, "step": 1800, "lr_weights": 0.00018, "lr_biases": 4.319999999999999e-06, "loss": -234.59979248046875, "time": 4247}
+{"epoch": 0, "step": 1900, "lr_weights": 0.00019, "lr_biases": 4.5599999999999995e-06, "loss": -297.3052978515625, "time": 4450}
+{"epoch": 0, "step": 2000, "lr_weights": 0.0002, "lr_biases": 4.8e-06, "loss": -288.8791198730469, "time": 4649}
+{"epoch": 0, "step": 2100, "lr_weights": 0.00021, "lr_biases": 5.039999999999999e-06, "loss": -236.33917236328125, "time": 4850}
+{"epoch": 0, "step": 2200, "lr_weights": 0.00022000000000000003, "lr_biases": 5.28e-06, "loss": -325.9983825683594, "time": 5052}
+comclr-stl10.py --split unlabeled --beta 1.0 ../data/STL10/
+comclr-stl10.py --split unlabeled --beta 1.0 ../data/STL10/
+comclr-stl10.py --split unlabeled --beta 1.0 ../data/STL10/
