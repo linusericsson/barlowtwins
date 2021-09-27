@@ -95,7 +95,7 @@ def main_worker(gpu, args):
     data_transform = ComCLRTransform(resize=64, crop_size=64, norm=[[.5, .5, .5], [.5, .5, .5]])
     dataset = torchvision.datasets.STL10(args.data, args.split, transform=transforms.Compose([
         transforms.Resize(64), transforms.CenterCrop(64), transforms.ToTensor()
-    ]))
+    ]), download=True)
     loader = torch.utils.data.DataLoader(
         dataset, batch_size=args.batch_size, num_workers=args.workers,
         pin_memory=True, shuffle=True)

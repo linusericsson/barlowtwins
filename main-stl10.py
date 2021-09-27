@@ -84,7 +84,7 @@ def main_worker(gpu, args):
     else:
         start_epoch = 0
 
-    dataset = torchvision.datasets.STL10(args.data, args.split, transform=Transform())
+    dataset = torchvision.datasets.STL10(args.data, args.split, transform=Transform(), download=True)
     loader = torch.utils.data.DataLoader(
         dataset, batch_size=args.batch_size, num_workers=args.workers,
         pin_memory=True, shuffle=True)
