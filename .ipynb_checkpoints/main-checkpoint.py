@@ -187,10 +187,10 @@ def off_diagonal(x):
 
 
 class BarlowTwins(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, arch='resnet50'):
         super().__init__()
         self.args = args
-        self.backbone = torchvision.models.resnet50(zero_init_residual=True)
+        self.backbone = torchvision.models.__dict__[arch](zero_init_residual=True)
         self.backbone.fc = nn.Identity()
 
         # projector

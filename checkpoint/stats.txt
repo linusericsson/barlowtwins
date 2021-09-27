@@ -838,3 +838,5 @@ comclr.py --batch-size 1024 --epochs 100 /disk/scratch/s1409650/projects/data/im
 {"epoch": 62, "step": 77800, "lr_weights": 0.30182659161843506, "lr_biases": 0.00724383819884244, "loss": 630.81982421875, "time": 138371}
 {"epoch": 62, "step": 77900, "lr_weights": 0.3007472944487475, "lr_biases": 0.0072179350667699385, "loss": 622.1748046875, "time": 138538}
 {"epoch": 62, "step": 78000, "lr_weights": 0.2996687719100754, "lr_biases": 0.0071920505258418095, "loss": 594.2626342773438, "time": 138705}
+main.py /STL10
+main.py ../data/STL10
