@@ -114,7 +114,7 @@ def main_worker(gpu, args):
                      optimizer=optimizer.state_dict())
         torch.save(state, args.checkpoint_dir / f'barlowtwins_{args.projector}_stl10_checkpoint_{epoch:04}.pth')
     # save final model
-    torch.save(model.module.backbone.state_dict(),
+    torch.save(model.backbone.state_dict(),
                args.checkpoint_dir / f'barlowtwins_{args.projector}_stl10_resnet18.pth')
 
 
